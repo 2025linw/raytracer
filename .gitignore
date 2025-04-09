@@ -1,8 +1,5 @@
-# Reference files
-refs/*
-
 # Build files
-build/*
+**/build
 
 # VSCODE config files
-.vscode/*
+**/.vscode

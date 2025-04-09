@@ -8,6 +8,7 @@
 #include "material.h"
 
 #include <iostream>
+#include <vector>
 
 class camera {
 private:
@@ -41,10 +42,46 @@ private:
     }
 
 public:
-    void render(const hittable& world) {
+    void render(const hittable& world, std::ostream& out, int n_threads) {
         initialize();
 
-        std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+        out << "P3\n" << image_width << ' ' << image_height << "\n255\n";
+
+        std::vector<color> row(image_width);
+        for (int j = 0; j < image_height; ++j) {
+            int complete = static_cast<int>(j * 20 / image_height);
+            std::clog << "\rProgress: [";
+            for (int i = 0; i < complete; ++i) {
+                std::clog << "=";
+            }
+            for (int i = 0; i < 20 - complete; ++i) {
+                std::clog << " ";
+            }
+            std::clog << "] (" << j << " out of " << image_height << ") " << std::flush;
+
+            #pragma omp parallel for schedule(dynamic)
+            for (int i = 0; i < image_width; ++i) {
+                color pixel_color(0, 0, 0);
+
+                for (int sample = 0; sample < samples_per_pixel; ++sample) {
+                    ray r = get_ray(i, j);
+                    pixel_color += ray_color(r, max_depth, world);
+                }
+
+                row[i] = pixel_color;
+            }
+
+            for (int i = 0; i < image_width; ++i) {
+                write_color(out, row[i], samples_per_pixel);
+            }
+        }
+
+        std::clog << "\rCompleted: [====================] (" << image_height << " out of " << image_height << ") \n";
+    }
+    void render(const hittable& world, std::ostream& out) {
+        initialize();
+
+        out << "P3\n" << image_width << ' ' << image_height << "\n255\n";
 
         for (int j = 0; j < image_height; ++j) {
             int complete = static_cast<int>(j * 20 / image_height);
@@ -60,16 +97,20 @@ public:
             for (int i = 0; i < image_width; ++i) {
                 color pixel_color(0, 0, 0);
                 // TODO: Prevent sampling when only using 1 sample to prevent weird sphere edges
+
                 for (int sample = 0; sample < samples_per_pixel; ++sample) {
                     ray r = get_ray(i, j);
                     pixel_color += ray_color(r, max_depth, world);
                 }
 
-                write_color(std::cout, pixel_color, samples_per_pixel);
+                write_color(out, pixel_color, samples_per_pixel);
             }
         }
 
         std::clog << "\rCompleted: [====================] (" << image_height << " out of " << image_height << ") \n";
+    }
+    void render(const hittable& world) {
+        render(world, std::cout);
     }
 private:
     color ray_color(const ray& r, int depth, const hittable& world) const {
